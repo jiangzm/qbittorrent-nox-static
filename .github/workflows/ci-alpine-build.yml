@@ -97,7 +97,7 @@ jobs:
         runs_on: ["ubuntu-26.04-arm"]
         os_id: ["alpine"]
         os_version_id: ["edge"]
-        qbt_cross_name: ["armhf", "armv7", "aarch64", "riscv64", "x86_64", "x86"]
+        qbt_cross_name: ["aarch64", "x86_64"]
         qbt_libtorrent_version: ${{ fromJSON(needs.setup.outputs.versions) }}
         qbt_build_tool: [""]
         qbt_linker_mold: ["yes"]
@@ -244,12 +244,20 @@ jobs:
         run: docker exec "${container_name}" bash "${script_name}" qbittorrent
 
       - name: Docker - Set release asset name
-        run: docker exec -w ${wd}/${qbt_build_dir}/completed "${container_name}" mv -f qbittorrent-nox "${{ matrix.qbt_cross_name }}-${{ matrix.qbt_qt_version_name }}qbittorrent-nox"
+        id: asset
+        env:
+          MATRIX_CROSS_NAME: ${{ matrix.qbt_cross_name }}
+          MATRIX_LT_VERSION: ${{ matrix.qbt_libtorrent_version }}
+        run: |
+          qbt_version="$(jq -r '.qbittorrent' "${qbt_build_dir}"/release_info/*-dependency-version.json)"
+          qbt_asset_name="qbittorrent-nox-${qbt_version}_lt${MATRIX_LT_VERSION}-${MATRIX_CROSS_NAME}"
+          docker exec -w "${wd}/${qbt_build_dir}/completed" "${container_name}" mv -f qbittorrent-nox "${qbt_asset_name}"
+          printf '%s\n' "path=${qbt_build_dir}/completed/${qbt_asset_name}" >> "$GITHUB_OUTPUT"
 
       - name: Generate artifact attestation
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: "${{ env.qbt_build_dir }}/completed/${{ matrix.qbt_cross_name }}-${{ matrix.qbt_qt_version_name }}qbittorrent-nox"
+          subject-path: "${{ steps.asset.outputs.path }}"
 
       - name: Docker - Release Info
         working-directory: "${{ env.workspace }}/${{ env.qbt_build_dir }}/release_info"

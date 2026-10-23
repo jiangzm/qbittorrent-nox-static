@@ -24,6 +24,7 @@ jobs:
     runs-on: ubuntu-26.04-arm
     outputs:
       versions: ${{ steps.matrix.outputs.versions }}
+      lt_version: ${{ steps.matrix.outputs.lt_version }}
     steps:
       - id: matrix
         run: |
@@ -32,21 +33,24 @@ jobs:
           [[ '${{ inputs.libtorrent_2_0 }}' == 'true' ]] && versions=$(printf '%s' "${versions}" | jq -c '. + ["2.0"]')
           [[ '${{ inputs.libtorrent_2_1 }}' == 'true' ]] && versions=$(printf '%s' "${versions}" | jq -c '. + ["2.1"]')
           printf 'versions=%s\n' "${versions}" >> "$GITHUB_OUTPUT"
+          printf 'lt_version=%s\n' $(echo "${versions}" | jq -r 'last') >> "$GITHUB_OUTPUT"
 
   release:
     needs: [setup]
     runs-on: ubuntu-26.04-arm
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        qbt_libtorrent_version: ${{ fromJSON(needs.setup.outputs.versions) }}
+    #strategy:
+    #  fail-fast: false
+    #  matrix:
+    #    qbt_libtorrent_version: ${{ fromJSON(needs.setup.outputs.versions) }}
 
-    name: "Publish release libtorrent-v${{ matrix.qbt_libtorrent_version }}"
+    #name: "Publish release libtorrent-v${{ matrix.qbt_libtorrent_version }}"
+    name: "Publish release"
 
     env:
       qbt_build_dir: "qbt-build"
+      qbt_libtorrent_version: ${{ needs.setup.outputs.lt_version }}
 
     steps:
       - name: Checkout
@@ -60,6 +64,7 @@ jobs:
           curl -sLo- "https://github.com/jgm/pandoc/releases/latest/download/pandoc-${pandoc_git_tag}-linux-$(dpkg --print-architecture).tar.gz" | tar xzf - --strip-components 2 -C "$(pwd)" --exclude="share"
 
       - name: Host - Download 1.2 qbittorrent-nox artifacts
+        if: inputs.libtorrent_1_2
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: "1.2"
@@ -67,6 +72,7 @@ jobs:
           merge-multiple: true
 
       - name: Host - Download 2.0 qbittorrent-nox artifacts
+        if: inputs.libtorrent_2_0
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: "2.0"
@@ -74,6 +80,7 @@ jobs:
           merge-multiple: true
 
       - name: Host - Download 2.1 qbittorrent-nox artifacts
+        if: inputs.libtorrent_2_1
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: "2.1"
@@ -82,7 +89,7 @@ jobs:
 
       - name: Host - merge release-info
         env:
-          lt_version: ${{ matrix.qbt_libtorrent_version }}
+          lt_version: ${{ env.qbt_libtorrent_version }}
         run: |
           shopt -s nullglob
 
@@ -120,19 +127,19 @@ jobs:
 
       - name: Host - Bootstrap release tag
         env:
-          LT_VERSION: ${{ matrix.qbt_libtorrent_version }}
+          LT_VERSION: ${{ env.qbt_libtorrent_version}}
         run: printf '%s\n' "release_tag=$(cat "${LT_VERSION}/tag.md")" >> $GITHUB_ENV
 
       - name: Host - Bootstrap release title
         env:
-          LT_VERSION: ${{ matrix.qbt_libtorrent_version }}
+          LT_VERSION: ${{ env.qbt_libtorrent_version }}
         run: printf '%s\n' "release_title=$(cat "${LT_VERSION}/title.md")" >> $GITHUB_ENV
 
       - name: Host- Create release - tag - assets
         env:
           GH_TOKEN: "${{ github.TOKEN }}"
-          LT_VERSION: ${{ matrix.qbt_libtorrent_version }}
-          RELEASE_FLAGS: ${{ matrix.qbt_libtorrent_version == '2.1' && '--latest' || '--prerelease' }}
+          LT_VERSION: ${{ env.qbt_libtorrent_version }}
+          RELEASE_FLAGS: ${{ inputs.libtorrent_2_1 && '--latest' || '--prerelease' }}
         run: |
           if git ls-remote --exit-code --tags origin "refs/tags/${release_tag}" >/dev/null 2>&1; then
             gh release edit "${release_tag}" \
@@ -141,11 +148,11 @@ jobs:
               ${RELEASE_FLAGS}
             gh release upload "${release_tag}" \
               --clobber \
-              "${LT_VERSION}"/*-qbittorrent-nox dependency-version.json
+              **/qbittorrent-nox-* dependency-version.json
           else
             gh release create "${release_tag}" \
               --title "${release_title}" \
               --notes-file release.md \
               ${RELEASE_FLAGS} \
-              "${LT_VERSION}"/*-qbittorrent-nox dependency-version.json
+              **/qbittorrent-nox-* dependency-version.json
           fi

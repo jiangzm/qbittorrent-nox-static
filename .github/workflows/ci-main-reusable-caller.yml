@@ -27,7 +27,7 @@ on:
       icu:
         description: "Enable icu"
         required: true
-        default: true
+        default: false
         type: boolean
       debug:
         description: "Debug builds (symbols)"
@@ -55,7 +55,7 @@ on:
       libtorrent_2_0:
         description: "Build libtorrent 2.0"
         required: true
-        default: true
+        default: false
         type: boolean
       libtorrent_2_0_tag:
         description: "libtorrent 2.0 tag | RC_2_0"

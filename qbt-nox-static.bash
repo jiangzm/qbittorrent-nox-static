@@ -3059,18 +3059,20 @@ _release_info() {
 
 	mkdir -p "${release_info_dir}"
 
+	local release_tag="v${app_version[qbittorrent]}"
+
 	cat > "${release_info_dir}/tag.md" <<- TAG_INFO
-		${github_tag[qbittorrent]}_${github_tag[libtorrent]}
+		${release_tag}
 	TAG_INFO
 
 	cat > "${release_info_dir}/title.md" <<- TITLE_INFO
-		qbittorrent ${app_version[qbittorrent]} libtorrent ${app_version[libtorrent]}
+		release-${release_tag}
 	TITLE_INFO
 
-	if _git_git ls-remote -t --exit-code "https://github.com/${qbt_revision_url}.git" "${github_tag[qbittorrent]}_${github_tag[libtorrent]}" &> /dev/null; then
-		if grep -q '"name": "dependency-version.json"' < <(_curl "https://api.github.com/repos/${qbt_revision_url}/releases/tags/${github_tag[qbittorrent]}_${github_tag[libtorrent]}"); then
+	if _git_git ls-remote -t --exit-code "https://github.com/${qbt_revision_url}.git" "${release_tag}" &> /dev/null; then
+		if grep -q '"name": "dependency-version.json"' < <(_curl "https://api.github.com/repos/${qbt_revision_url}/releases/tags/${release_tag}"); then
 			local max_retries=10 retry_count=0
-			until _curl "https://github.com/${qbt_revision_url}/releases/download/${github_tag[qbittorrent]}_${github_tag[libtorrent]}/dependency-version.json" > "${release_info_dir}/remote-dependency-version.json"; do
+			until _curl "https://github.com/${qbt_revision_url}/releases/download/${release_tag}/dependency-version.json" > "${release_info_dir}/remote-dependency-version.json"; do
 				((retry_count++))
 				if ((retry_count >= max_retries)); then
 					printf '%b\n' " ${unicode_yellow_circle} Failed to download dependency-version.json after ${max_retries} attempts, skipping revision check"
